@@ -206,10 +206,11 @@ jobs:
           path: target
           key: cargo-build-target-${{ runner.OS }}-${{ hashFiles('**/Cargo.lock') }}
       - name: Run cargo build runtime/polkadot/Cargo.toml
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --locked --target=wasm32-unknown-unknown --manifest-path "runtime/polkadot/Cargo.toml"
+        run: cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/polkadot/Cargo.toml
+        #uses: actions-rs/cargo@v1
+        #with:
+        #  command: build
+        #  args: --locked --target=wasm32-unknown-unknown --manifest-path "runtime/polkadot/Cargo.toml"
       - name: Run cargo build runtime/kusama/Cargo.toml
         uses: actions-rs/cargo@v1
         with:
