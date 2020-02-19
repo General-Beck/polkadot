@@ -89,6 +89,8 @@ jobs:
     needs: [linux-cache-tools]
     runs-on: ubuntu-latest
     env:
+      CC: "clang"
+      CXX: "clang++"
       RUSTFLAGS: "-Cdebug-assertions=y"
       RUST_TOOLCHAIN: stable
       RUSTC_WRAPPER: sccache
@@ -145,7 +147,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
           args: --all --release --verbose --locked
 
   check-web-wasm:
@@ -153,6 +154,8 @@ jobs:
     needs: [linux-cache-tools]
     runs-on: ubuntu-latest
     env:
+      CC: "clang"
+      CXX: "clang++"
       RUST_TOOLCHAIN: stable
       RUSTC_WRAPPER: sccache
     steps:
@@ -203,43 +206,36 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
           args: --locked --target=wasm32-unknown-unknown --manifest-path "runtime/polkadot/Cargo.toml"
       - name: Run cargo build runtime/kusama/Cargo.toml
         uses: actions-rs/cargo@v1
         with:
           command: build
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
           args: --locked --target=wasm32-unknown-unknown --manifest-path "runtime/kusama/Cargo.toml"
       - name: Run cargo build erasure-coding/Cargo.toml
         uses: actions-rs/cargo@v1
         with:
           command: build
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
           args: --locked --target=wasm32-unknown-unknown --manifest-path "erasure-coding/Cargo.toml"
       - name: Run cargo build parachain/Cargo.toml
         uses: actions-rs/cargo@v1
         with:
           command: build
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
           args: --locked --target=wasm32-unknown-unknown --manifest-path "parachain/Cargo.toml"
       - name: Run cargo build primitives/Cargo.toml
         uses: actions-rs/cargo@v1
         with:
           command: build
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
           args: --locked --target=wasm32-unknown-unknown --manifest-path "primitives/Cargo.toml"
       - name: Run cargo build rpc/Cargo.toml
         uses: actions-rs/cargo@v1
         with:
           command: build
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
           args: --locked --target=wasm32-unknown-unknown --manifest-path "rpc/Cargo.toml"
       - name: Run cargo build statement-table/Cargo.toml
         uses: actions-rs/cargo@v1
         with:
           command: build
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
           args: --locked --target=wasm32-unknown-unknown --manifest-path "statement-table/Cargo.toml"
 
 #build
@@ -248,6 +244,8 @@ jobs:
     needs: [linux-cache-tools, linux-test-stable]
     runs-on: ubuntu-latest
     env:
+      CC: "clang"
+      CXX: "clang++"
       RUST_TOOLCHAIN: stable
       RUSTC_WRAPPER: sccache
     steps:
@@ -298,7 +296,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
           args: --release --verbose
       - name: Upload artifact
         uses: actions/upload-artifact@v1
