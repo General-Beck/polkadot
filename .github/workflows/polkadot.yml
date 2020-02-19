@@ -48,7 +48,7 @@ jobs:
           key: rustup-${{ runner.OS }}-[${{ env.RUST_TOOLCHAIN }}]-${{ hashFiles('rust-toolchain') }}
       # if /home/runner/tools/bin wasn't cached, and rustup isn't cached, install toolchain
       - name: Install rust & wasm toolchain
-        if: "steps.cache-tools-bin.outputs.cache-hit != 'true' && steps.cache-rustup   .outputs.cache-hit != 'true'"
+        #if: "steps.cache-tools-bin.outputs.cache-hit != 'true' && steps.cache-rustup   .outputs.cache-hit != 'true'"
         run: |
           rustup set profile minimal
           rustup toolchain install $RUST_TOOLCHAIN --component clippy rustfmt
