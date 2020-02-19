@@ -52,7 +52,9 @@ jobs:
         run: |
           rustup set profile minimal
           rustup toolchain install $RUST_TOOLCHAIN --component clippy rustfmt
-          rustup target add wasm32-unknown-unknown
+          rustup toolchain install nightly
+          rustup target add wasm32-unknown-unknown --toolchain nightly
+          cargo +nightly install --git https://github.com/alexcrichton/wasm-gc --force
           rm -rf /home/runner/.rustup/toolchains/*/share
       # if /home/runner/tools/bin wasn't cached, restore sccache cache
       - name: Restore /home/runner/.cache/sccache
