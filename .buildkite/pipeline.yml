@@ -1,0 +1,8 @@
+steps:
+  - command: "cargo build --release"
+    label: "build"
+    plugins:
+    plugins:
+      - docker#v3.5.0:
+          image: "parity/rust-builder:latest"
+          always-pull: true
