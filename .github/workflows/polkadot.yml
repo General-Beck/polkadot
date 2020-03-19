@@ -47,7 +47,7 @@ jobs:
 
 #build
   build-linux-polkadot:
-name:                  Build linux Polkadot
+    name:                  Build linux Polkadot
     runs-on:               ubuntu-latest
     container:             generalbeck/rust-builder:musl
     steps:
