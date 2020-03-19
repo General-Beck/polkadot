@@ -1,0 +1,55 @@
+name:                      Check web wasm
+
+on:                        [push]
+jobs:
+  check-web-wasm:
+    name:                  Check web wasm
+    runs-on:               ubuntu-latest
+    container:             generalbeck/rust-builder:musl
+    env:
+      CARGO_INCREMENTAL:   0
+    steps:
+      - name:              Checkout sources
+        uses:              actions/checkout@master
+        with:
+          submodules:      recursive
+      - name:              Prepare registry & index dir's
+        shell:             bash
+        run:               mkdir -p /usr/local/cargo/registry&&mkdir -p /usr/local/cargo/git
+      - name:              Cache cargo registry
+        uses:              actions/cache@v1.1.2
+        with:
+          path:            /usr/local/cargo/registry
+          key:             ${{ runner.os }}-cargo-registry-check-${{ hashFiles('**/Cargo.lock') }}
+      - name:              Cache cargo index
+        uses:              actions/cache@v1.1.2
+        with:
+          path:            /usr/local/cargo/git
+          key:             ${{ runner.os }}-cargo-git-check-${{ hashFiles('**/Cargo.lock') }}
+      - name:              Restore ./target
+        uses:              actions/cache@v1.1.2
+        with:
+          path:            target
+          key:             ${{ runner.OS }}-cargo-build-[check-web-wasm]-${{ hashFiles('**/Cargo.lock') }}
+      - name:              Environment
+        run:               printenv
+      - name:              Run cargo build wasm
+        continue-on-error: true
+        run:               |
+           rustup show
+           cargo --version
+           # WASM support is in progress. As more and more crates support WASM, we
+           # should add entries here. See https://github.com/paritytech/polkadot/issues/625
+           time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/polkadot/Cargo.toml
+           time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/kusama/Cargo.toml
+           time cargo build --locked --target=wasm32-unknown-unknown --manifest-path erasure-coding/Cargo.toml
+           time cargo build --locked --target=wasm32-unknown-unknown --manifest-path parachain/Cargo.toml
+           time cargo build --locked --target=wasm32-unknown-unknown --manifest-path primitives/Cargo.toml
+           time cargo build --locked --target=wasm32-unknown-unknown --manifest-path rpc/Cargo.toml
+           time cargo build --locked --target=wasm32-unknown-unknown --manifest-path statement-table/Cargo.toml
+           echo "Prepare build directory for cache"
+           find ./target/debug -maxdepth 1 -type f -delete;
+           find ./target/wasm32-unknown-unknown/debug -maxdepth 1 -type f -delete;
+           rm -rf ./target/debug/{deps,.fingerprint}/*;
+           rm -rf ./target/wasm32-unknown-unknown/debug/{deps,.fingerprint}/*{node_cli.wasm}*;
+           rm -f  ./target/.rustc_info.json;

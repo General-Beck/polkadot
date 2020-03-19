@@ -1,309 +1,90 @@
-name: Polkadot
+name: Test & build Polkadot
 
 on: [push]
 jobs:
-  linux-cache-tools:
-    name: Cache tools
-    runs-on: ubuntu-latest
-    env:
-      CC: "clang"
-      CXX: "clang++"
-      RUST_TOOLCHAIN: stable
-      RUSTC_WRAPPER: sccache
-    steps:
-      - run: echo "::add-path::$GITHUB_WORKSPACE/tools/bin" && printenv
-      - name: Checkout sources
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 50
-      - name: Checkout submodules
-        shell: bash
-        run: git submodule update --init --recursive
-      - name: Prepare for restoring caches
-        run: |
-          rm -rf /home/runner/.rustup
-          rm -rf /home/runner/.cargo/git
-          rm -rf /home/runner/.cargo/registry
-      - name: Restore /home/runner/tools/bin
-        id: cache-tools-bin
-        uses: actions/cache@v1.1.2
-        with:
-          path: tools/bin
-          key: tools-bin-${{ runner.OS }}-[${{ env.RUST_TOOLCHAIN }}]-${{ hashFiles('.github/caching/tools-cache.lock') }}
-      - name: Install sccache and wasm-pack
-        if: steps.cache-tools-bin.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p tools/bin
-            SCCACHE_LATEST_URL=`curl -sL    https://api.github.com/repos/mozilla/sccache/releases/latest | jq -r '.assets[4].browser_download_url'`
-          WASM_PACK_LATEST_URL=`curl -sL https://api.github.com/repos/rustwasm/wasm-pack/releases/latest | jq -r '.assets[3].browser_download_url'`
-          curl -L   $SCCACHE_LATEST_URL | tar zxf - --overwrite --strip-components=1 -C tools/bin
-          curl -L $WASM_PACK_LATEST_URL | tar zxf - --overwrite --strip-components=1 -C tools/bin
-      # if /home/runner/tools/bin wasn't cached, restore rustup
-      - name: Restore /home/runner/.rustup
-        if: "steps.cache-tools-bin.outputs.cache-hit != 'true'"
-        id: cache-rustup
-        uses: actions/cache@v1.1.2
-        with:
-          path: /home/runner/.rustup
-          key: rustup-${{ runner.OS }}-[${{ env.RUST_TOOLCHAIN }}]-${{ hashFiles('rust-toolchain') }}
-      # if /home/runner/tools/bin wasn't cached, and rustup isn't cached, install toolchain
-      - name: Install rust & wasm toolchain
-        if: "steps.cache-tools-bin.outputs.cache-hit != 'true' && steps.cache-rustup   .outputs.cache-hit != 'true'"
-        run: |
-          rustup set profile minimal
-          rustup toolchain install $RUST_TOOLCHAIN --component clippy rustfmt
-          rustup toolchain install nightly --component clippy rustfmt
-          rustup target add wasm32-unknown-unknown
-          rustup target add wasm32-unknown-unknown --toolchain nightly
-          cargo +nightly install --git https://github.com/alexcrichton/wasm-gc --force
-          rm -rf /home/runner/.rustup/toolchains/*/share
-      # if /home/runner/tools/bin wasn't cached, restore sccache cache
-      - name: Restore /home/runner/.cache/sccache
-        if: "steps.cache-tools-bin.outputs.cache-hit != 'true'"
-        uses: actions/cache@v1.1.2
-        with:
-          path: /home/runner/.cache/sccache
-          key: sccache-[linux-cache-tools]-${{ runner.OS }}-s${{ hashFiles('.github/caching/sccache.lock') }}
-      # if /home/runner/tools/bin wasn't cached, restore /home/runner/.cargo/git
-      - name: Restore /home/runner/.cargo/git
-        if: "steps.cache-tools-bin.outputs.cache-hit != 'true'"
-        id: cache-cargo-git
-        uses: actions/cache@v1.1.2
-        with:
-          path: /home/runner/.cargo/git
-          key: cargo-git-${{ runner.OS }}-${{ hashFiles('**/Cargo.lock') }}
-      # if cargo-audit wasn't cached, restore /home/runner/.cargo/registry
-      - name: Restore /home/runner/.cargo/registry
-        id: cache-cargo-registry
-        if: "steps.cache-tools-bin.outputs.cache-hit != 'true'"
-        uses: actions/cache@v1.1.2
-        with:
-          path: /home/runner/.cargo/registry
-          key: cargo-registry-${{ runner.OS }}-${{ hashFiles('**/Cargo.lock') }}
-      - name: Run cargo fetch
-        if: " steps.cache-tools-bin     .outputs.cache-hit != 'true' && (steps.cache-cargo-git     .outputs.cache-hit != 'true' ||  steps.cache-cargo-registry.outputs.cache-hit != 'true')"
-        run: cargo fetch
-      - name: Install cargo-audit, cargo-web, wasm-pack
-        if: "steps.cache-tools-bin.outputs.cache-hit != 'true'"
-        run: cargo install --root tools --force cargo-web wasm-pack
-
   linux-test-stable:
-    name: Test linux stable
-    needs: [linux-cache-tools]
-    runs-on: ubuntu-latest
+    name:                      Test linux stable
+    runs-on:                   ubuntu-latest
+    container:                 generalbeck/rust-builder:musl
     env:
-      CC: "clang"
-      CXX: "clang++"
-      RUSTFLAGS: "-Cdebug-assertions=y"
-      RUST_TOOLCHAIN: stable
-      RUSTC_WRAPPER: sccache
+      RUSTFLAGS:               "-Cdebug-assertions=y"
+      CARGO_INCREMENTAL:       0
       BUILD_DUMMY_WASM_BINARY: 1
     steps:
-      - run: echo "::add-path::$GITHUB_WORKSPACE/tools/bin" && printenv
-      - name: Checkout sources
-        uses: actions/checkout@v2
+      - name:                  Checkout sources
+        uses:                  actions/checkout@master
         with:
-          fetch-depth: 50
-      - name: Checkout submodules
-        shell: bash
-        run: git submodule update --init --recursive
-      - name: Prepare for restoring caches
-        run: |
-          rm -rf /home/runner/.rustup
-          rm -rf /home/runner/.cargo/git
-          rm -rf /home/runner/.cargo/registry
-      - name: Restore /home/runner/.rustup
-        uses: actions/cache@v1.1.2
+          submodules:          recursive
+      - name:                  Prepare registry & index dir's
+        shell:                 bash
+        run:                   mkdir -p /usr/local/cargo/registry&&mkdir -p /usr/local/cargo/git
+      - name:                  Cache cargo registry
+        uses:                  actions/cache@v1.1.2
         with:
-          path: /home/runner/.rustup
-          key: rustup-${{ runner.OS }}-[${{ env.RUST_TOOLCHAIN }}]-${{ hashFiles('rust-toolchain') }}
-      - name: Restore /home/runner/.cache/sccache
-        uses: actions/cache@v1.1.2
+          path:                /usr/local/cargo/registry
+          key:                 ${{ runner.os }}-cargo-registry-polkadot-${{ hashFiles('**/Cargo.lock') }}
+      - name:                  Cache cargo index
+        uses:                  actions/cache@v1.1.2
         with:
-          path: /home/runner/.cache/sccache
-          key: sccache-[linux-test-stable]-${{ runner.OS }}-s${{ hashFiles('.github/caching/sccache.lock') }}
-      - name: Restore /home/runner/tools/bin
-        uses: actions/cache@v1.1.2
+          path:                /usr/local/cargo/git
+          key:                 ${{ runner.os }}-cargo-git-polkadot-${{ hashFiles('**/Cargo.lock') }}
+      - name:                  Restore ./target
+        uses:                  actions/cache@v1.1.2
         with:
-          path: tools/bin
-          key: tools-bin-${{ runner.OS }}-[${{ env.RUST_TOOLCHAIN }}]-${{ hashFiles('.github/caching/tools-cache.lock') }}
-      - name: Restore /home/runner/.cargo/git
-        uses: actions/cache@v1.1.2
-        with:
-          path: /home/runner/.cargo/git
-          key: cargo-git-${{ runner.OS }}-${{ hashFiles('**/Cargo.lock') }}
-      - name: Restore /home/runner/.cargo/registry
-        uses: actions/cache@v1.1.2
-        with:
-          path: /home/runner/.cargo/registry
-          key: cargo-registry-${{ runner.OS }}-${{ hashFiles('**/Cargo.lock') }}
-      - name: Restore ./target
-        uses: actions/cache@v1.1.2
-        with:
-          path: target
-          key: cargo-build-target-${{ runner.OS }}-${{ hashFiles('**/Cargo.lock') }}
-      - name: Configure node
-        uses: actions/setup-node@v1
-        with:
-          node-version: "13.x"
-      - name: Run cargo Test linux stable
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all --release --verbose --locked
-
-  check-web-wasm:
-    name: Check web wasm
-    needs: [linux-cache-tools]
-    runs-on: ubuntu-latest
-    env:
-      CC: "clang"
-      CXX: "clang++"
-      RUST_TOOLCHAIN: stable
-      RUSTC_WRAPPER: sccache
-    steps:
-      - run: echo "::add-path::$GITHUB_WORKSPACE/tools/bin" && printenv
-      - name: Checkout sources
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 50
-      - name: Checkout submodules
-        shell: bash
-        run: git submodule update --init --recursive
-      - name: Prepare for restoring caches
-        run: |
-          rm -rf /home/runner/.rustup
-          rm -rf /home/runner/.cargo/git
-          rm -rf /home/runner/.cargo/registry
-      - name: Restore /home/runner/.rustup
-        uses: actions/cache@v1.1.2
-        with:
-          path: /home/runner/.rustup
-          key: rustup-${{ runner.OS }}-[${{ env.RUST_TOOLCHAIN }}]-${{ hashFiles('rust-toolchain') }}
-      - name: Restore /home/runner/.cache/sccache
-        uses: actions/cache@v1.1.2
-        with:
-          path: /home/runner/.cache/sccache
-          key: sccache-[check-web-wasm]-${{ runner.OS }}-s${{ hashFiles('.github/caching/sccache.lock') }}
-      - name: Restore /home/runner/tools/bin
-        uses: actions/cache@v1.1.2
-        with:
-          path: tools/bin
-          key: tools-bin-${{ runner.OS }}-[${{ env.RUST_TOOLCHAIN }}]-${{ hashFiles('.github/caching/tools-cache.lock') }}
-      - name: Restore /home/runner/.cargo/git
-        uses: actions/cache@v1.1.2
-        with:
-          path: /home/runner/.cargo/git
-          key: cargo-git-${{ runner.OS }}-${{ hashFiles('**/Cargo.lock') }}
-      - name: Restore /home/runner/.cargo/registry
-        uses: actions/cache@v1.1.2
-        with:
-          path: /home/runner/.cargo/registry
-          key: cargo-registry-${{ runner.OS }}-${{ hashFiles('**/Cargo.lock') }}
-      - name: Restore ./target
-        uses: actions/cache@v1.1.2
-        with:
-          path: target
-          key: cargo-build-target-${{ runner.OS }}-${{ hashFiles('**/Cargo.lock') }}
-      - name: Run cargo build runtime/polkadot/Cargo.toml
-        run: cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/polkadot/Cargo.toml
-        #uses: actions-rs/cargo@v1
-        #with:
-        #  command: build
-        #  args: --locked --target=wasm32-unknown-unknown --manifest-path "runtime/polkadot/Cargo.toml"
-      - name: Run cargo build runtime/kusama/Cargo.toml
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --locked --target=wasm32-unknown-unknown --manifest-path "runtime/kusama/Cargo.toml"
-      - name: Run cargo build erasure-coding/Cargo.toml
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --locked --target=wasm32-unknown-unknown --manifest-path "erasure-coding/Cargo.toml"
-      - name: Run cargo build parachain/Cargo.toml
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --locked --target=wasm32-unknown-unknown --manifest-path "parachain/Cargo.toml"
-      - name: Run cargo build primitives/Cargo.toml
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --locked --target=wasm32-unknown-unknown --manifest-path "primitives/Cargo.toml"
-      - name: Run cargo build rpc/Cargo.toml
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --locked --target=wasm32-unknown-unknown --manifest-path "rpc/Cargo.toml"
-      - name: Run cargo build statement-table/Cargo.toml
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --locked --target=wasm32-unknown-unknown --manifest-path "statement-table/Cargo.toml"
+          path:                target
+          key:                 ${{ runner.OS }}-cargo-build-[linux-test-stable]-${{ hashFiles('**/Cargo.lock') }}
+      - name:                  Run cargo Test linux stable
+        shell:                 bash
+        continue-on-error:     true
+        run:                   cargo test --all --release --verbose --locked
+      - name:                  Prepare build directory for cache
+        shell:                 bash
+        run:                   |
+          echo "Prepare build directory for cache"
+          find ./target/release -maxdepth 1 -type f -delete;
+          rm -rf ./target/release/{deps,.fingerprint}/*{polkadot}*;
+          rm -f  ./target/.rustc_info.json;
 
 #build
   build-linux-polkadot:
-    name: Build linux Substrate
-    needs: [linux-cache-tools, linux-test-stable]
-    runs-on: ubuntu-latest
-    env:
-      CC: "clang"
-      CXX: "clang++"
-      RUST_TOOLCHAIN: stable
-      RUSTC_WRAPPER: sccache
+name:                  Build linux Polkadot
+    runs-on:               ubuntu-latest
+    container:             generalbeck/rust-builder:musl
     steps:
-      - run: echo "::add-path::$GITHUB_WORKSPACE/tools/bin" && printenv
-      - name: Checkout sources
-        uses: actions/checkout@v2
+      - name:              Checkout sources
+        uses:              actions/checkout@master
+      - name:              Prepare registry & index dir's
+        shell:             bash
+        run:               mkdir -p /usr/local/cargo/registry&&mkdir -p /usr/local/cargo/git
+      - name:              Cache cargo registry
+        uses:              actions/cache@v1.1.2
         with:
-          fetch-depth: 50
-      - name: Checkout submodules
-        shell: bash
-        run: git submodule update --init --recursive
-      - name: Prepare for restoring caches
-        run: |
-          rm -rf /home/runner/.rustup
-          rm -rf /home/runner/.cargo/git
-          rm -rf /home/runner/.cargo/registry
-      - name: Restore /home/runner/.rustup
-        uses: actions/cache@v1.1.2
+          path:            /usr/local/cargo/registry
+          key:             ${{ runner.os }}-cargo-registry-build-${{ hashFiles('**/Cargo.lock') }}
+      - name:              Cache cargo index
+        uses:              actions/cache@v1.1.2
         with:
-          path: /home/runner/.rustup
-          key: rustup-${{ runner.OS }}-[${{ env.RUST_TOOLCHAIN }}]-${{ hashFiles('rust-toolchain') }}
-      - name: Restore /home/runner/.cache/sccache
-        uses: actions/cache@v1.1.2
+          path:            /usr/local/cargo/git
+          key:             ${{ runner.os }}-cargo-git-build-${{ hashFiles('**/Cargo.lock') }}
+      - name:              Restore ./target
+        uses:              actions/cache@v1.1.2
         with:
-          path: /home/runner/.cache/sccache
-          key: sccache-[build-linux-polkadot]-${{ runner.OS }}-s${{ hashFiles('.github/caching/sccache.lock') }}
-      - name: Restore /home/runner/tools/bin
-        uses: actions/cache@v1.1.2
-        with:
-          path: tools/bin
-          key: tools-bin-${{ runner.OS }}-[${{ env.RUST_TOOLCHAIN }}]-${{ hashFiles('.github/caching/tools-cache.lock') }}
-      - name: Restore /home/runner/.cargo/git
-        uses: actions/cache@v1.1.2
-        with:
-          path: /home/runner/.cargo/git
-          key: cargo-git-${{ runner.OS }}-${{ hashFiles('**/Cargo.lock') }}
-      - name: Restore /home/runner/.cargo/registry
-        uses: actions/cache@v1.1.2
-        with:
-          path: /home/runner/.cargo/registry
-          key: cargo-registry-${{ runner.OS }}-${{ hashFiles('**/Cargo.lock') }}
-      - name: Restore ./target
-        uses: actions/cache@v1.1.2
-        with:
-          path: target
-          key: cargo-build-target-${{ runner.OS }}-${{ hashFiles('**/Cargo.lock') }}
-      - name: Run cargo build Polkadot
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --verbose
-      - name: Upload artifact
-        uses: actions/upload-artifact@v1
+          path:            target
+          key:             ${{ runner.OS }}-cargo-build-[build-polkadot]-${{ hashFiles('**/Cargo.lock') }}
+      - name:              Run cargo build Substrate
+        continue-on-error: true
+        shell:             bash
+        run:               cargo build --target x86_64-unknown-linux-musl --release --verbose
+      - name:              Prepare artifacts
+        shell:             bash
+        run:               |
+          echo "_____ Post-processing binaries _____"
+          rm -rf artifacts/*
+          mkdir -p artifacts/
+          cp -v target/x86_64-unknown-linux-musl/release/polkadot artifacts/substrate
+      - name:              Upload artifact
+        uses:              actions/upload-artifact@v1
         continue-on-error: true
         with:
-          name: polkadot
-          path: target/release
+          name:            ${{ runner.os }}.polkadot.zip
+          path:            artifacts/
